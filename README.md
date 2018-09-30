@@ -2,7 +2,7 @@
 Beauty of Math. Coding fun. No purpose...
 
 ## Run
-Open index.html in your Browser
+Open index.html in your browser or navigate to [Modulations](https://rnd7.github.io/modulations/)
 
 ## Screenshot
 
