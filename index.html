@@ -1,0 +1,566 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Modulations</title>
+  <style>
+    * {
+      padding: 0;
+      margin: 0;
+      font-family: sans-serif;
+    }
+    html, body{
+      height: 100%;
+      width: 100%;
+    }
+    body{
+      background-color: #000000;
+      color: #FFFFFF;
+      overflow: hidden;
+    }
+    h1 {
+      font-size: 1em;
+    }
+    #controls {
+      position: absolute;
+      font-size: .8em;
+      padding: 6px;
+      background-color: #123;
+      bottom: 6px;
+      right: 6px;
+    }
+    #controls > * {
+      margin-bottom: 3px;
+    }
+
+    #controls > *:last-child {
+      margin-bottom: 0px;
+    }
+    button {
+      padding: 2px;
+    }
+
+    input[type=checkbox], input[type=radio] {
+      vertical-align: middle;
+      position: relative;
+      bottom: 1px;
+    }
+    input[type=radio] {
+        bottom: 2px;
+    }
+    #display {
+      position: absolute;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="display"></canvas>
+  <div id="controls">
+    <h1>Modulations</h1>
+    <div>
+      <button id="previous">previous</button>
+      <button id="next">next</button>
+    </div>
+    <div id="current">
+    </div>
+    <div>
+      <button id="pause">pause</button>
+    </div>
+    <div>
+      <button id="clear">clear</button>
+      <button id="restart">restart</button>
+    </div>
+    <div>
+      <select id="pq">
+        <option value="cycle">cycle</option>
+        <option value="fraction" selected>fraction</option>
+      </select>
+      <label for="pq">pq</label>
+    </div>
+    <div>
+      <select id="uv">
+        <option value="cycle">cycle</option>
+        <option value="fraction">fraction</option>
+      </select>
+      <label for="uv">uv</label>
+    </div>
+  </div>
+  <script>
+
+
+    const cv = document.querySelector("#display")
+    const ctx = cv.getContext("2d")
+
+    let width
+    let height
+    let aspect
+    let ox
+    let oy
+
+    let fields = []
+    let xFields = 128
+    let yFields = 128
+
+
+    let algorithms = [
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          const u = field.u
+          const v = field.v
+          const p = field.p
+          const q = field.q
+          field.p += ( Math.pow(1+Math.cos(u*q*Math.PI*2),((1+u))*C))/3657.39
+          field.q += ( Math.pow(1+Math.sin(v*p*Math.PI*2),((1+v))*C))/3711.312
+        },
+        render: (field) => {
+           return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), 1)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          const u = field.u
+          const v = field.v
+          field.u += ((Math.pow(v*u,u*C/iteration)))/iteration
+          field.v += ((Math.pow(u*v,v*C/iteration)))/iteration
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.u,1.,field.v*.5), 1.)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI*.32213
+          var u = field.u
+          var v = field.v
+          field.u += ((Math.pow(v*u,C)))*.01
+          field.v += ((Math.pow(u*v,C)))*.01
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.u,1.,field.v*.5), 1.);
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI*.32213
+          const u = field.u
+          const v = field.v
+          field.u += ((Math.pow(v,C)))*.01
+          field.v += ((Math.pow(u,C)))*.01
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.u,1.,field.v*.5), 1.)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = 1/Math.PI
+          const u = field.u
+          const v = field.v
+          field.u += ((Math.pow(v/C,C/iteration)))
+          field.v -= ((Math.pow(u*C,C/iteration)))
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.u,1.,field.v*.5), 1.);
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = .5
+          var u = field.u
+          var v = field.v
+          field.u += ((Math.pow(v*C,C/iteration)))
+          field.v -= ((Math.pow(C*u,C/iteration)))
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.u,1.,field.v*.5), 1.)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = 1/3.123
+          var u = field.u
+          var v = field.v
+          field.u += ((Math.pow(v/iteration,C/iteration)))
+          field.v -= ((Math.pow(u/iteration,C/iteration)))
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.u,1.,field.v*.5), .1)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = .33123
+          var u = field.u
+          var v = field.v
+          field.u += ((Math.pow(v,v*C)))
+          field.v -= ((Math.pow(u,u*C)))
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.u,1.,field.v*.5), .1)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = 1/ Math.sqrt(5)
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += ((Math.pow(v/iteration,u/C)))
+          field.q += ((Math.pow(u/iteration,v/C)))
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), .1);
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = 1/Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += Math.pow(q/C*u,(u+p)/C)*Math.abs(Math.cos(iteration/3333))/C
+          field.q += Math.pow(p/C*v,(v+q)/C)*Math.abs(Math.sin(iteration/10000))/C
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), .31)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += Math.pow(q*u,(u+p)/C)*Math.abs(Math.cos(iteration/1000))/0xFF
+          field.q += Math.pow(p*v,(v+q)/C)*Math.abs(Math.sin(iteration/1000))/0xFF
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), .1)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += Math.pow((q)*C,(u*p)*C)*Math.abs(Math.cos(iteration/1000))/0x8F
+          field.q += Math.pow((p)/C,(v*q)*C)*Math.abs(Math.sin(iteration/1000))/0x8F
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), .1)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += Math.pow((q)*C,(u+1)/C)*Math.abs(Math.cos(iteration/1000))/0x8F
+          field.q += Math.pow((p)/C,(v+1)/C)*Math.abs(Math.sin(iteration/1000))/0x8F
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), .1);
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += (p + Math.pow((1+q),(u+1)/C)/q)/231
+          field.q += (q + Math.pow((1-p),(v+1)/C)/p)/374
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), .3)
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p = (p + Math.pow(1+v*Math.cos(q*Math.PI),(u+1)/C))
+          field.q = (q + Math.pow(1+u*Math.sin(p*Math.PI),(v+1)/C))
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), 1);
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += (p + Math.pow(1+u*Math.cos(q*Math.PI*2),(v+1)/C))/2317
+          field.q += (q + Math.pow(1+v*Math.sin(p*Math.PI*2),(u+1)/C))/37
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), 1);
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += (p + Math.pow(1+u*Math.cos(q*Math.PI*2),((1+v)*q+1)/C))/23
+          field.q += (q + Math.pow(1+v*Math.sin(p*Math.PI*2),((1+u)*p+1)/C))/37
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), 1);
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += (p + Math.pow(1+u*Math.cos(q*Math.PI*2),((1+v))/C))/37
+          field.q += (q + Math.pow(1+v*Math.sin(p*Math.PI*2),((1+u))/C))/37
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), 1);
+        }
+      },
+      {
+        transform: (field, iteration) => {
+          const C = Math.PI
+          var u = field.u
+          var v = field.v
+          var p = field.p
+          var q = field.q
+          field.p += ( Math.pow(1+Math.cos(q*Math.PI*2),((1+v))*C))/3657
+          field.q += ( Math.pow(1+Math.sin(p*Math.PI*2),((1+u))*C))/3711
+        },
+        render: (field) => {
+          return makeColor(...hslToRgb(field.p, 1., .1+field.q*.4), 1);
+        }
+      },
+    ]
+
+    let selectedAlgorithm = Math.floor(Math.random()*algorithms.length)
+
+    let paused = false
+
+    function togglePause() {
+      paused = !paused
+      document.querySelector("#pause").innerHTML = paused?"play":"pause"
+    }
+
+    function next() {
+      selectedAlgorithm = ++selectedAlgorithm%algorithms.length
+      document.querySelector("#current").innerHTML = selectedAlgorithm
+    }
+
+    function previous() {
+      selectedAlgorithm = (algorithms.length+--selectedAlgorithm)%algorithms.length
+      document.querySelector("#current").innerHTML = selectedAlgorithm
+    }
+
+    function hslToRgb(h, s, l) {
+      var r, g, b
+      if (s == 0) {
+        r = g = b = l
+      } else {
+        var hue2rgb = function hue2rgb(p, q, t) {
+          if(t < 0) t += 1
+          if(t > 1) t -= 1
+          if(t < 1/6) return p + (q - p) * 6 * t
+          if(t < 1/2) return q;
+          if(t < 2/3) return p + (q - p) * (2/3 - t) * 6
+          return p;
+        }
+        var q = l < 0.5 ? l * (1 + s) : l + s - l * s
+        var p = 2 * l - q
+        r = hue2rgb(p, q, h + 1/3)
+        g = hue2rgb(p, q, h)
+        b = hue2rgb(p, q, h - 1/3)
+      }
+      return [r,g,b];
+    }
+
+    function makeColor(r,g,b,a) {
+      return 'rgba(' + ((r * 0xFF) | 0) + ',' + ((g * 0xFF) | 0)  + ','+ ((b * 0xFF) | 0) + ',' + a + ')'
+    }
+
+    function randomize(val, minVal, maxVal, maxChange) {
+      var delta = maxVal - minVal
+      var change = (Math.random()* 2 - 1) * maxChange
+      var normalized = ((val - minVal) / delta) * 2 - 1
+      var nchange = change/maxChange
+      val += change - (normalized*maxChange+nchange*maxChange)*Math.pow(normalized,2)
+      return val;
+    }
+
+    function populate() {
+      iteration = 0
+      fields = []
+      for(var i = 0; i< xFields*yFields; i++) {
+        var x = (i%xFields)|0
+        var y = ((i-x)/xFields)|0
+        let u = Math.abs(((x)/xFields)*2-1)
+        let v = Math.abs(((y)/yFields)*2-1)
+        let p = 1
+        let q = 1
+        fields.push({i, x, y, u, v, p, q})
+      }
+    }
+
+
+
+
+    function wrap(point) {
+      point.x = (1+(point.x%1))%1
+      point.y = (1+(point.y%1))%1
+      return point
+    }
+
+    function median(p1, p2) {
+      return {
+        x: (p1.x + p2.x)/2,
+        y: (p1.y + p2.y)/2,
+      }
+    }
+    function wmedian(p1, p2) {
+      return {
+        x: (p1.x*p1.w + p2.x*(1-p1.w)),
+        y: (p1.y*p1.w + p2.y*(1-p1.w)),
+      }
+    }
+    function calcCenter() {
+      var center = {x:0, y:0}
+      for(var i = 0; i< fields.length; i++ ){
+        center.x += points[i].x
+        center.y += points[i].y
+      }
+      center.x /= points.length
+      center.y /= points.length
+      return center
+    }
+
+    function wrapIndex(i, limit) {
+      return ((i+limit)%limit)|0
+    }
+
+    function calcAngle(p1,p2) {
+      return Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    }
+
+    function clone(p1) {
+      return {x:p1.x, y:p1.y, w:p1.w }
+    }
+    let iteration = 0
+
+    function cycle(val) {
+      if (val<0) return 1+val%1
+      return val%1
+    }
+
+    function fraction(val) {
+      return Math.abs(val)%1
+    }
+
+    uvMode = "cycle"
+    pqMode = "fraction"
+
+    function transform() {
+      iteration++
+      for (var i = 0; i<fields.length; i++) {
+        const field = fields[i]
+        algorithms[selectedAlgorithm].transform(field, iteration)
+
+        if (pqMode === "cycle") {
+          field.p = cycle(field.p)
+          field.q = cycle(field.q)
+        } else if (pqMode === "fraction") {
+          field.p = fraction(field.p)
+          field.q = fraction(field.q)
+        }
+        if (uvMode === "cycle") {
+          field.u = cycle(field.u)
+          field.v = cycle(field.v)
+        } else if (uvMode === "fraction") {
+          field.u = fraction(field.u)
+          field.v = fraction(field.v)
+        }
+
+      }
+
+    }
+
+    function resize() {
+      width = ctx.canvas.width = window.innerWidth
+      height = ctx.canvas.height =  window.innerHeight
+      wpx = ((width) / xFields) | 0
+      wpy = ((height) / yFields) | 0
+      wpx = wpy = Math.min(wpx, wpy)
+      ox =  (width-(wpx * xFields)) / 2
+      oy =  (height-(wpy * yFields)) / 2
+      clear()
+    }
+
+    function clear() {
+      ctx.clearRect(0, 0, width, height)
+    }
+
+    function render() {
+      for (var i = 0; i<fields.length; i++) {
+        ctx.fillStyle = algorithms[selectedAlgorithm].render(fields[i])
+        ctx.fillRect(((fields[i].x*wpx)|0)+ox, ((fields[i].y*wpy)|0)+oy, wpx-1,  wpy-1)
+      }
+    }
+
+    let tick = 0
+    function loop() {
+      requestAnimationFrame(() => {
+        if (!paused) {
+          transform()
+          render()
+        }
+        loop()
+      })
+    }
+
+    function initialize() {
+      window.addEventListener("resize", resize)
+      document.querySelector("#next").addEventListener("click", next)
+      document.querySelector("#previous").addEventListener("click", previous)
+      document.querySelector("#pause").addEventListener("click", togglePause)
+      document.querySelector("#clear").addEventListener("click", clear)
+      document.querySelector("#restart").addEventListener("click", populate)
+      document.querySelector("#pq").addEventListener("change", (e) => {
+        pqMode = e.target.value
+        console.log(pqMode)
+      })
+      document.querySelector("#uv").addEventListener("change", (e) => {
+        uvMode = e.target.value
+        console.log(uvMode)
+      })
+      document.querySelector("#current").innerHTML = selectedAlgorithm
+      populate()
+      resize()
+      loop()
+    }
+    initialize()
+  </script>
+</body>
+</html>
